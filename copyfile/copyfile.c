@@ -4,8 +4,11 @@
 
 int copyUsingBuffer(const char *file_src, const char *file_dest)
 {
-    printf("Mode: 1: Kopieren mit Zwischenspeicher\n");
-    printf("copy %s to %s\n", file_src, file_dest);
+
+    if(file_src == file_dest){
+        perror("file_src cant be equal to file_dest!");
+        exit(EXIT_FAILURE);
+    }
 
     // 1. Quell und Zieldatei mittels open(2) öffnen
     // 2. geeignete Flags beim Öffnen wählen: Quelldatei nur lesen und Zieldatei ggf. erstellen und nur beschreiben
@@ -22,9 +25,11 @@ int copyUsingBuffer(const char *file_src, const char *file_dest)
 
 int copyUsingMap(const char *file_src, const char *file_dest)
 {
-    printf("Mode: 1: Kopieren mithilfe eines Speicherabbilds\n");
-    printf("copy %s to %s\n", file_src, file_dest);
 
+    if(file_src == file_dest){
+        perror("file_src cant be equal to file_dest!");
+        exit(EXIT_FAILURE);
+    }
     // 1. Quell und Zieldatei mittels open(2) öffnen
     // 2. geeignete Flags beim Öffnen wählen: Quelldatei nur lesen und Zieldatei ggf. erstellen und nur beschreiben
     // 3. Größe der Datei fstat(2) ermitteln
@@ -41,9 +46,11 @@ int copyUsingMap(const char *file_src, const char *file_dest)
 
 int copyUsingSystemCall(const char *file_src, const char *file_dest)
 {
-    printf("Mode: 1: Kopieren mithilfe von sendfile(2)\n");
-    printf("copy %s to %s\n", file_src, file_dest);
 
+    if(file_src == file_dest){
+        perror("file_src cant be equal to file_dest!");
+        exit(EXIT_FAILURE);
+    }
     // 1. Quell und Zieldatei mittels open(2) öffnen
     // 2. geeignete Flags beim Öffnen wählen: Quelldatei nur lesen und Zieldatei ggf. erstellen und nur beschreiben
     // 3. Größe der Datei fstat(2) ermitteln
