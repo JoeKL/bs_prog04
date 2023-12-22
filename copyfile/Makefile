@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11
+CFLAGS = -Wall -Werror -Wextra -std=c11
 
 copyfile: main.c copyfile.c copyfile.h
 	${CC} ${CFLAGS} main.c copyfile.c -o copyfile
