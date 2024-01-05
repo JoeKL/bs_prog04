@@ -4,7 +4,7 @@
 
 void count(const char *filename)
 {
-    FILE *fp, *outputFile;
+    FILE *fp;
     unsigned char c;
     unsigned char lauchPattern[] = {0x4C, 0x41, 0x55, 0x43, 0x48, 0x0A}; // "LAUCH" in hexadecimal
 
@@ -20,17 +20,6 @@ void count(const char *filename)
         return;
     }
 
-    // Open the output file to save the "LAUCH" section
-    outputFile = fopen("output", "wb");
-
-    // Check if the output file can be created
-    if (outputFile == NULL)
-    {
-        printf("Could not create output file\n");
-        fclose(fp);
-        return;
-    }
-
     // Extract characters from the file
     while (fread(&c, sizeof(unsigned char), 1, fp) == 1)
     {
@@ -40,17 +29,9 @@ void count(const char *filename)
         {
             unsigned char buffer[5];        
             long currentPos = ftell(fp); // Save current file position
-            // printf("Initial '0x4C' found at position: 0x%ld\n", currentPos - 1);
             
             if (fread(buffer, sizeof(unsigned char), 5, fp) == 5)
             {
-
-                // printf("Buffer read for comparison: ");
-                // for (int i = 0; i < 5; i++) {
-                //     printf("%02X ", buffer[i]);
-                // }
-                // printf("\n");
-
                 if (memcmp(buffer, lauchPattern + 1, 4) == 0)
                 {
                     printf("'LAUCH' pattern found at position: 0x%lX\n", currentPos - 1);
@@ -68,8 +49,7 @@ void count(const char *filename)
                 }
                 else
                 {
-                    // printf("'LAUCH' pattern not found, resetting file pointer to position: 0x%lX\n", currentPos);
-                    fseek(fp, -5, SEEK_SET); // Reset file pointer if "LAUCH" is not found
+                    fseek(fp, -5, SEEK_SET); // Reset file pointer if "AUCH\n" is not found
                 }
             }
         }
@@ -77,8 +57,6 @@ void count(const char *filename)
         // Save the current character in the "LAUCH" section
         if (lauchDepthCount)
         {
-            fputc(c, outputFile);
-            
             // Check if the character is a letter (uppercase or lowercase)
             if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
             {
@@ -89,13 +67,10 @@ void count(const char *filename)
                 alphabet[c - 'a']++;
             }
 
-            // putchar(c);
         }
     }
 
     // Close the input and output files
     fclose(fp);
 
-    // fwrite(lauchPattern, sizeof(unsigned char), 5, outputFile); // Write "LAUCH" to the end of output file
-    fclose(outputFile); // close output file
 }
