@@ -1,14 +1,18 @@
 #include "counter.h"
 #include <stdio.h>
-#include <string.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 void count(const char *filename)
 {
     FILE *fp;
-    unsigned char c;
-    unsigned char lauchPattern[] = {0x4C, 0x41, 0x55, 0x43, 0x48, 0x0A}; // "LAUCH" in hexadecimal
 
-    int lauchDepthCount = 0; // Flag to track if "LAUCH" is found
+    // uint64_t buffer; // 64-bit buffer
+    uint64_t buffer[512]; // 4096-byte buffer represented as 512 uint64_t
+    // unsigned char lauchPattern[] = {0x4C, 0x41, 0x55, 0x43, 0x48, 0x0A}; // "LAUCH" in hexadecimal
+
+    unsigned long long bytesRead = 0;
+    unsigned long long skippedSegments = 0;
 
     // Open the input file
     fp = fopen(filename, "rb");
@@ -20,57 +24,39 @@ void count(const char *filename)
         return;
     }
 
-    // Extract characters from the file
-    while (fread(&c, sizeof(unsigned char), 1, fp) == 1)
+    // Extract 8 bytes at a time from the file
+    while ((fread(buffer, 1, 4096, fp)) > 0)
     {
-
-        // Check if "LAUCH" is found
-        if (c == lauchPattern[0])
+        bytesRead += 4096;
+        for (size_t i = 0; i < 512; ++i)
         {
-            unsigned char buffer[5];        
-            long currentPos = ftell(fp); // Save current file position
-            
-            if (fread(buffer, sizeof(unsigned char), 5, fp) == 5)
+            if (buffer[i] != 0)
             {
-                if (memcmp(buffer, lauchPattern + 1, 4) == 0)
+
+                // Iterate through each byte in the non empty 64-bit buffer
+                for (int j = 0; j < 8; ++j)
                 {
-                    printf("'LAUCH' pattern found at position: 0x%lX\n", currentPos - 1);
-                    if (lauchDepthCount == 0)
+                    // byteCount++;
+                    unsigned char c = (buffer[i] >> (j * 8)) & 0xFF; // Extract each byte from the buffer
+
+                    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
                     {
-                        lauchDepthCount += 1; // Set the flag to start saving
-                        continue; // Skip the characters in the first "LAUCH" bit pattern
-                    }
-                    else
-                    {
-                        // Stop saving when the second "LAUCH" is found
-                        lauchDepthCount -= 1; // unset the flag to stop saving
-                        break;
+                        // Convert the character to lowercase (if it's uppercase)
+                        c = (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
+
+                        // Increment the corresponding counter in the alphabet array
+                        alphabet[c - 'a']++;
                     }
                 }
-                else
-                {
-                    fseek(fp, -5, SEEK_SET); // Reset file pointer if "AUCH\n" is not found
-                }
             }
-        }
-
-        // Save the current character in the "LAUCH" section
-        if (lauchDepthCount)
-        {
-            // Check if the character is a letter (uppercase or lowercase)
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
+            else
             {
-                // Convert the character to lowercase (if it's uppercase)
-                c = (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
-
-                // Increment the corresponding counter in the alphabet array
-                alphabet[c - 'a']++;
+                skippedSegments++;
             }
-
         }
     }
-
-    // Close the input and output files
+        
     fclose(fp);
-
+    printf("bytes read: %lli\n", bytesRead);
+    printf("empty 8Byte segments skipped: %lli; so %lli byte\n", skippedSegments, skippedSegments * 8);
 }
