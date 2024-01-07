@@ -3,8 +3,22 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+unsigned char toLowercase[256];
+
 void count(const char *filename)
 {
+
+    // Initialisiere die Lookup-Tabelle
+    for (int i = 0; i < 256; i++) {
+        if (i >= 'A' && i <= 'Z') {
+            toLowercase[i] = i - 'A' + 'a';
+        } else if (i >= 'a' && i <= 'z') {
+            toLowercase[i] = i;
+        } else {
+            toLowercase[i] = 0; // Nicht-Buchstabe
+        }
+    }
+
     FILE *fp;
 
     // uint64_t buffer; // 64-bit buffer
@@ -38,14 +52,9 @@ void count(const char *filename)
                 {
                     // byteCount++;
                     unsigned char c = (buffer[i] >> (j * 8)) & 0xFF; // Extract each byte from the buffer
-
-                    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
-                    {
-                        // Convert the character to lowercase (if it's uppercase)
-                        c = (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
-
-                        // Increment the corresponding counter in the alphabet array
-                        alphabet[c - 'a']++;
+                    if (toLowercase[c] != 0) {
+                        // Es ist ein Buchstabe
+                        alphabet[toLowercase[c] - 'a']++;
                     }
                 }
             }
