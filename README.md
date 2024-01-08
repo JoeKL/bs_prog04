@@ -31,7 +31,7 @@ Time: 7049479 us
 
 ------------
 
-count array[512] * 8byte & lookup table
+count array[512] * 8byte
 
 a: 1278710
 b: 1276801
