@@ -3,39 +3,16 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-unsigned char toLowercase[256];
-
-void initLookupTable()
-{
-    // Initialisiere die Lookup-Tabelle
-    for (int i = 0; i < 256; i++)
-    {
-        if (i >= 'A' && i <= 'Z')
-        {
-            toLowercase[i] = i - 'A' + 'a';
-        }
-        else if (i >= 'a' && i <= 'z')
-        {
-            toLowercase[i] = i;
-        }
-        else
-        {
-            toLowercase[i] = 0; // Nicht-Buchstabe
-        }
-    }
-}
+// mm265 bytehistogramm
 
 void count(const char *filename)
 {
-
-    initLookupTable();
 
     FILE *fp;
 
     uint64_t buffer[512]; // 4096-byte buffer represented as 512 uint64_t
 
-    unsigned long long bytesRead = 0;
-    unsigned long long skippedSegments = 0;
+    // unsigned long long bytesRead = 0;
 
     // Open the input file
     fp = fopen(filename, "rb");
@@ -48,40 +25,47 @@ void count(const char *filename)
     }
 
     // Extract 4096 bytes at a time from the file and store it in the 8*512 array
-    while ((fread(buffer, 1, 4096, fp)) > 0)
+    while ((fread(buffer, 1, 4096, fp)) != 0)
     {
-        bytesRead += 4096;
+        // bytesRead += 4096;
 
         // for each entry in the buffer array
-        for (size_t i = 0; i < 512; ++i)
+        for (size_t i = 0; i < 512; i++)
         {
+
             // check if the 8 byte value isnt just 0
             if (buffer[i] != 0)
             {
+                // faster if added before for loop
+                unsigned char c;
+                
                 // Iterate through each byte in the non empty 8-byte buffer
-                for (int j = 0; j < 8; ++j)
+                for (int j = 0; j < 8; j++)
                 {
                     // Extract each byte from the 8 byte buffer segment
-                    unsigned char c = (buffer[i] >> (j * 8)) & 0xFF;
+                    c = ((buffer[i] >> (j * 8)) & 0xFF);
 
-                    if (toLowercase[c] != 0)
+                    // if between 65 and 122
+                    if (c >= 'A' && c <= 'z')
                     {
-                        // Es ist ein Buchstabe
-                        alphabet[toLowercase[c] - 'a']++;
+                        // if smaller than 90; convert uppercase to lowercase by adding 32
+                        if (c <= 'Z') {
+                            c = c + 32;
+                        }
+
+                        // if bigger than 97, 
+                        if (c >= 'a')
+                        {
+                            alphabet[c - 'a']++;
+                        }
                     }
                 }
-            }
-            else
-            {
-                // count skipped segments up
-                skippedSegments++;
             }
         }
     }
 
     fclose(fp);
-    printf("bytes read: %lli\n", bytesRead);
-    printf("empty 8-Byte segments skipped: %lli; that are %lli byte\n", skippedSegments, skippedSegments * 8);
+    // printf("bytes read: %lli\n", bytesRead);
 }
 
 // void count(const char *filename)
