@@ -6,10 +6,10 @@
 
 #define MAX_STACK_SIZE 131072
 #define BUFFER_SIZE 512 // each buffer is 4096 bytes, represented as 512 uint64_t
-#define NUM_CONSUMERS 2 // number of consumer threads
+#define NUM_CONSUMERS 4 // number of consumer threads
 
 size_t producedBytes = 0;
-size_t consumedBytes = 0;
+_Atomic size_t consumedBytes = 0;
 
 int finishedReading = 0;
 
@@ -22,9 +22,12 @@ typedef struct
 } shared_stack_t;
 
 shared_stack_t shared_stack = {.size = 0, .mutex = PTHREAD_MUTEX_INITIALIZER, .cond = PTHREAD_COND_INITIALIZER};
+pthread_mutex_t alphabet_mutex;
 
 void *thread_handle_packet()
 {
+    unsigned int local_alphabet[26] = {0};
+
     while (1)
     {
         pthread_mutex_lock(&shared_stack.mutex);
@@ -72,20 +75,29 @@ void *thread_handle_packet()
                         // if bigger than 97,
                         if (c >= 'a')
                         {
-                            alphabet[c - 'a']++;
+                            local_alphabet[c - 'a']++;
                         }
                     }
                 }
             }
         }
     }
+
+    pthread_mutex_lock(&alphabet_mutex);
+
+    for (int i = 0; i < 26; i++) {
+        alphabet[i] += local_alphabet[i];
+    }
+
+    pthread_mutex_unlock(&alphabet_mutex);
+
     return NULL;
 }
 
 void count(const char *filename)
 {
     FILE *fp;
-    pthread_t thread_id;
+    pthread_t thread_ids[NUM_CONSUMERS]; // Array to hold thread IDs for consumers
 
     // Open the input file
     fp = fopen(filename, "rb");
@@ -97,7 +109,10 @@ void count(const char *filename)
         return;
     }
 
-    pthread_create(&thread_id, NULL, thread_handle_packet, NULL);
+    // Create multiple consumer threads
+    for (int i = 0; i < NUM_CONSUMERS; i++) {
+        pthread_create(&thread_ids[i], NULL, thread_handle_packet, NULL);
+    }
 
     // Extract 4096 bytes at a time from the file and store it in the 8*512 array
     while (fread(shared_stack.buffer[shared_stack.size], 1, 4096, fp) != 0) {
@@ -125,8 +140,10 @@ void count(const char *filename)
     pthread_cond_broadcast(&shared_stack.cond); // Wake up all waiting threads
     pthread_mutex_unlock(&shared_stack.mutex);
 
-    // Wait for the child thread to finish
-    pthread_join(thread_id, NULL);
+    // Wait for all consumer threads to finish
+    for (int i = 0; i < NUM_CONSUMERS; i++) {
+        pthread_join(thread_ids[i], NULL);
+    }
 
     // Cleanup
     printf("produced %li\n", producedBytes);
