@@ -6,7 +6,6 @@
 
 #define MAX_STACK_SIZE 131072
 #define BUFFER_SIZE 512 // each buffer is 4096 bytes, represented as 512 uint64_t
-#define NUM_CONSUMERS 2 // number of consumer threads
 
 size_t producedBytes = 0;
 size_t consumedBytes = 0;
@@ -25,6 +24,7 @@ shared_stack_t shared_stack = {.size = 0, .mutex = PTHREAD_MUTEX_INITIALIZER, .c
 
 void *thread_handle_packet()
 {
+
     while (1)
     {
         pthread_mutex_lock(&shared_stack.mutex);
