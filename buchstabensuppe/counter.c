@@ -4,9 +4,9 @@
 #include <inttypes.h>
 #include <pthread.h>
 
-#define MAX_STACK_SIZE 131072
+#define MAX_QUEUE_SIZE 131072
 #define BUFFER_SIZE 512 // each buffer is 4096 bytes, represented as 512 uint64_t
-#define NUM_CONSUMERS 4 // number of consumer threads
+#define NUM_CONSUMERS 10 // number of consumer threads
 
 size_t producedBytes = 0;
 _Atomic size_t consumedBytes = 0;
@@ -15,37 +15,47 @@ int finishedReading = 0;
 
 typedef struct
 {
-    uint64_t buffer[MAX_STACK_SIZE][BUFFER_SIZE];
-    size_t size;
-    pthread_mutex_t mutex;
+    uint64_t buffer[MAX_QUEUE_SIZE][BUFFER_SIZE];
+    size_t front, rear;
+    pthread_mutex_t queue_mutex;
     pthread_cond_t cond;
-} shared_stack_t;
+} shared_queue_t;
 
-shared_stack_t shared_stack = {.size = 0, .mutex = PTHREAD_MUTEX_INITIALIZER, .cond = PTHREAD_COND_INITIALIZER};
+shared_queue_t shared_queue = {
+    .front = 0, 
+    .rear = 0, 
+    .cond = PTHREAD_COND_INITIALIZER,
+    .queue_mutex = PTHREAD_MUTEX_INITIALIZER
+};
+
+
 pthread_mutex_t alphabet_mutex;
 
 void *thread_handle_packet()
 {
     unsigned int local_alphabet[26] = {0};
 
+    int handledPackets = 0;
+
     while (1)
     {
-        pthread_mutex_lock(&shared_stack.mutex);
+        pthread_mutex_lock(&shared_queue.queue_mutex);
 
-        while (shared_stack.size == 0 && !finishedReading) {
-            pthread_cond_wait(&shared_stack.cond, &shared_stack.mutex);
+        while (shared_queue.front == shared_queue.rear && !finishedReading) {
+            pthread_cond_wait(&shared_queue.cond, &shared_queue.queue_mutex);
         }
 
-        // If finished reading and no more data to process, exit the loop
-        if (finishedReading && shared_stack.size == 0) {
-            pthread_mutex_unlock(&shared_stack.mutex);
+        if (finishedReading && shared_queue.front == shared_queue.rear) {
+            pthread_mutex_unlock(&shared_queue.queue_mutex);
             break;
         }
 
-        uint64_t *buffer = shared_stack.buffer[shared_stack.size - 1];
-        shared_stack.size--;
+        uint64_t *buffer = shared_queue.buffer[shared_queue.front];
+        shared_queue.front = (shared_queue.front + 1) % MAX_QUEUE_SIZE;
+        handledPackets++;
 
-        pthread_mutex_unlock(&shared_stack.mutex);
+        pthread_mutex_unlock(&shared_queue.queue_mutex);
+
 
         // for each entry in the buffer array
         for (size_t i = 0; i < 512; i++)
@@ -82,6 +92,8 @@ void *thread_handle_packet()
             }
         }
     }
+    
+    printf("handled %i packets\n", handledPackets);
 
     pthread_mutex_lock(&alphabet_mutex);
 
@@ -97,55 +109,51 @@ void *thread_handle_packet()
 void count(const char *filename)
 {
     FILE *fp;
-    pthread_t thread_ids[NUM_CONSUMERS]; // Array to hold thread IDs for consumers
+    pthread_t thread_ids[NUM_CONSUMERS];
 
-    // Open the input file
     fp = fopen(filename, "rb");
-
-    // Check if the input file exists
     if (fp == NULL)
     {
         printf("Could not open file %s", filename);
         return;
     }
 
-    // Create multiple consumer threads
     for (int i = 0; i < NUM_CONSUMERS; i++) {
         pthread_create(&thread_ids[i], NULL, thread_handle_packet, NULL);
     }
 
-    // Extract 4096 bytes at a time from the file and store it in the 8*512 array
-    while (fread(shared_stack.buffer[shared_stack.size], 1, 4096, fp) != 0) {
-        producedBytes += 4096;
-        pthread_mutex_lock(&shared_stack.mutex);
+    while (fread(shared_queue.buffer[shared_queue.rear], 1, 4096, fp) > 0) {
+        pthread_mutex_lock(&shared_queue.queue_mutex);
 
-        if (shared_stack.size < MAX_STACK_SIZE) {
-            shared_stack.size++;
-            pthread_cond_signal(&shared_stack.cond);
+        if ((shared_queue.rear + 1) % MAX_QUEUE_SIZE != shared_queue.front) {
+            producedBytes += 4096;
+            shared_queue.rear = (shared_queue.rear + 1) % MAX_QUEUE_SIZE;
+
+            pthread_cond_signal(&shared_queue.cond);
+            pthread_mutex_unlock(&shared_queue.queue_mutex);
         } else {
-            perror("buffer overflow");
-            pthread_mutex_unlock(&shared_stack.mutex);
+            perror("queue overflow");
+            pthread_mutex_unlock(&shared_queue.queue_mutex);
             return;
         }
-
-        pthread_mutex_unlock(&shared_stack.mutex);
     }
 
     fclose(fp);    
 
-    // Signal that reading is finished
-    pthread_mutex_lock(&shared_stack.mutex);
+    pthread_mutex_lock(&shared_queue.queue_mutex);
     finishedReading = 1;
-    printf("work done. %li buffers left to read\n", shared_stack.size);
-    pthread_cond_broadcast(&shared_stack.cond); // Wake up all waiting threads
-    pthread_mutex_unlock(&shared_stack.mutex);
+    pthread_cond_broadcast(&shared_queue.cond);
+    pthread_mutex_unlock(&shared_queue.queue_mutex);
+
+
+    // printf("work done. %li buffers left to read\n", shared_stack.size);
 
     // Wait for all consumer threads to finish
     for (int i = 0; i < NUM_CONSUMERS; i++) {
         pthread_join(thread_ids[i], NULL);
     }
 
-    // Cleanup
+    // debug
     printf("produced %li\n", producedBytes);
     printf("consumed %li\n", consumedBytes);
 }
