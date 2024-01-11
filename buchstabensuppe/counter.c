@@ -132,3 +132,44 @@ void count(const char *filename)
     printf("produced %li\n", producedBytes);
     printf("consumed %li\n", consumedBytes);
 }
+
+void count_naive(const char *filename) {
+    FILE *fp;
+    int counts[26] = {0};
+
+    // Open the input file
+    fp = fopen(filename, "rb");
+
+    // Check if the input file exists
+    if (fp == NULL) {
+        printf("Could not open file %s", filename);
+        return;
+    }
+
+    // Read the file one character at a time
+    int c;
+    while ((c = fgetc(fp)) != EOF) {
+        // if between 65 and 122
+        if (c >= 'A' && c <= 'z')
+        {
+            // if smaller than 90; convert uppercase to lowercase by adding 32
+            if (c <= 'Z')
+            {
+                c = c + 32;
+            }
+
+            // if bigger than 97,
+            if (c >= 'a')
+            {
+                counts[c - 'a']++;
+            }
+        }
+    }
+
+    // Print the counts
+    for (int i = 0; i < 26; i++) {
+        printf("%c: %d\n", 'a' + i, counts[i]);
+    }
+
+    fclose(fp);
+}
