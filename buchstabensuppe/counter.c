@@ -4,8 +4,6 @@
 #include <inttypes.h>
 #include <pthread.h>
 
-
-
 void count(const char *filename)
 {
 
@@ -26,7 +24,6 @@ void count(const char *filename)
     // Extract 4096 bytes at a time from the file and store it in the 8*512 array
     while ((fread(buffer, 1, 4096, fp)) != 0)
     {
-        // bytesRead += 4096;
 
         // for each entry in the buffer array
         for (size_t i = 0; i < 512; i++)
@@ -65,7 +62,6 @@ void count(const char *filename)
     }
 
     fclose(fp);
-    // printf("bytes read: %lli\n", bytesRead);
 }
 
 // Naive implementation to compare results
