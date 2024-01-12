@@ -3,12 +3,14 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <ctype.h>
 
 #define MAX_QUEUE_SIZE 131072 // 2^17
-#define BUFFER_SIZE 512 // each buffer is 4096 bytes, represented as 512 uint64_t
-#define NUM_CONSUMERS 8 // number of consumer threads
+#define BUFFER_SIZE 512       // each buffer is 4096 bytes, represented as 512 uint64_t
+#define NUM_CONSUMERS 8       // number of consumer threads
 
 int finishedReading = 0;
+int callValue = 0;
 
 typedef struct
 {
@@ -19,30 +21,30 @@ typedef struct
 } shared_queue_t;
 
 shared_queue_t shared_queue = {
-    .front = 0, 
-    .rear = 0, 
+    .front = 0,
+    .rear = 0,
     .cond = PTHREAD_COND_INITIALIZER,
-    .queue_mutex = PTHREAD_MUTEX_INITIALIZER
-};
+    .queue_mutex = PTHREAD_MUTEX_INITIALIZER};
 
 pthread_mutex_t alphabet_mutex;
 
-
 void *thread_handle_packet()
 {
-    unsigned int local_alphabet[26] = {0};
+    unsigned int local_ascii[128] = {0};
 
     while (1)
     {
         pthread_mutex_lock(&shared_queue.queue_mutex);
 
         // if the queue is empty and we are not done reading
-        while (shared_queue.front == shared_queue.rear && !finishedReading) {
+        while (shared_queue.front == shared_queue.rear && !finishedReading)
+        {
             pthread_cond_wait(&shared_queue.cond, &shared_queue.queue_mutex);
         }
 
         // if the queue is empty and we are done reading
-        if (finishedReading && shared_queue.front == shared_queue.rear) {
+        if (finishedReading && shared_queue.front == shared_queue.rear)
+        {
             pthread_mutex_unlock(&shared_queue.queue_mutex);
             break;
         }
@@ -54,36 +56,23 @@ void *thread_handle_packet()
 
         pthread_mutex_unlock(&shared_queue.queue_mutex);
 
-
         // for each entry in the buffer array
-        for (size_t i = 0; i < 512; i++)
+        for (size_t i = 0; i < 512; ++i)
         {
             // check if the 8 byte value isnt just 0
             if (buffer[i] != 0)
             {
-                // faster if added before for loop
-                unsigned char c;
+                // cast the 8 byte value to a char pointer
+                unsigned char *bytePointer = (unsigned char *)&buffer[i];
 
                 // Iterate through each byte in the non empty 8-byte buffer
-                for (int j = 0; j < 8; j++)
+                for (int j = 0; j < 8; ++j)
                 {
-                    // Extract each byte from the 8 byte buffer segment
-                    c = ((buffer[i] >> (j * 8)) & 0xFF);
 
-                    // if between 65 and 122
-                    if (c >= 'A' && c <= 'z')
+                    // Check if the character is a letter (A-Z or a-z) using bit manipulation
+                    if ((bytePointer[j] | 32) - 'a' < 26)
                     {
-                        // if smaller than 90; convert uppercase to lowercase by adding 32
-                        if (c <= 'Z')
-                        {
-                            c = c + 32;
-                        }
-
-                        // if bigger than 97,
-                        if (c >= 'a')
-                        {
-                            local_alphabet[c - 'a']++;
-                        }
+                        local_ascii[bytePointer[j]]++;
                     }
                 }
             }
@@ -91,10 +80,12 @@ void *thread_handle_packet()
     }
 
     pthread_mutex_lock(&alphabet_mutex); // lock alphabet mutex
-    
+
     // add local_alphabet to alphabet
-    for (int i = 0; i < 26; i++) {
-        alphabet[i] += local_alphabet[i]; // add local_alphabet to alphabet
+    for (int i = 0; i < 26; i++)
+    {
+        alphabet[i] += local_ascii[i+'a']; // add local_alphabet to alphabet
+        alphabet[i] += local_ascii[i+'A']; // add local_alphabet to alphabet
     }
 
     pthread_mutex_unlock(&alphabet_mutex);
@@ -104,8 +95,8 @@ void *thread_handle_packet()
 
 void count(const char *filename)
 {
-    
-    FILE *fp; // file pointer
+
+    FILE *fp;                            // file pointer
     pthread_t thread_ids[NUM_CONSUMERS]; // array of thread ids
 
     fp = fopen(filename, "rb"); // open file
@@ -118,50 +109,56 @@ void count(const char *filename)
     }
 
     // create consumer threads
-    for (int i = 0; i < NUM_CONSUMERS; i++) {
+    for (int i = 0; i < NUM_CONSUMERS; i++)
+    {
         pthread_create(&thread_ids[i], NULL, thread_handle_packet, NULL);
     }
 
     // read file into queue in 4096 byte chunks until EOF
-    while (fread(shared_queue.buffer[shared_queue.rear], 1, 4096, fp) > 0) {
+    while (fread(shared_queue.buffer[shared_queue.rear], 1, 4096, fp) > 0)
+    {
 
         // lock mutex
         pthread_mutex_lock(&shared_queue.queue_mutex);
 
         // if the queue is not full
-        if ((shared_queue.rear + 1) % MAX_QUEUE_SIZE != shared_queue.front) {
-            
+        if ((shared_queue.rear + 1) % MAX_QUEUE_SIZE != shared_queue.front)
+        {
+
             shared_queue.rear = (shared_queue.rear + 1) % MAX_QUEUE_SIZE; // increment rear
 
-            pthread_cond_signal(&shared_queue.cond); // signal consumer threads
+            pthread_cond_signal(&shared_queue.cond);         // signal consumer threads
             pthread_mutex_unlock(&shared_queue.queue_mutex); // unlock mutex
-        } else {
+        }
+        else
+        {
             perror("queue overflow");
             pthread_mutex_unlock(&shared_queue.queue_mutex); // unlock mutex
             return;
-        }        
+        }
     }
 
-    fclose(fp);    // close file
+    fclose(fp); // close file
 
-    pthread_mutex_lock(&shared_queue.queue_mutex); // lock mutex
-    finishedReading = 1;    // set finishedReading to 1 to signal consumer threads
-    pthread_cond_broadcast(&shared_queue.cond);     // broadcast signal to consumer threads
-    pthread_mutex_unlock(&shared_queue.queue_mutex);    // unlock mutex
-
+    pthread_mutex_lock(&shared_queue.queue_mutex);   // lock mutex
+    finishedReading = 1;                             // set finishedReading to 1 to signal consumer threads
+    pthread_cond_broadcast(&shared_queue.cond);      // broadcast signal to consumer threads
+    pthread_mutex_unlock(&shared_queue.queue_mutex); // unlock mutex
 
     // printf("work done. %li buffers left to read\n", shared_queue.rear - shared_queue.front);
 
     // Wait for all consumer threads to finish
-    for (int i = 0; i < NUM_CONSUMERS; i++) {
+    for (int i = 0; i < NUM_CONSUMERS; i++)
+    {
         pthread_join(thread_ids[i], NULL);
     }
 
-    //delete 2x LAUCH from the alphabet
+    printf("callValue: %d\n", callValue);
+
+    // delete 2x LAUCH from the alphabet
     alphabet[11] -= 2; // L == 11
-    alphabet[0] -= 2;   // A == 0
+    alphabet[0] -= 2;  // A == 0
     alphabet[20] -= 2; // U == 20
     alphabet[2] -= 2;  // C == 2
     alphabet[7] -= 2;  // H == 7
-
 }
