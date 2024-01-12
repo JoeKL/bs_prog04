@@ -9,7 +9,7 @@
 
 #define MAX_QUEUE_SIZE 7500     // 480.000kb / 64kb = 7500
 #define BUFFER_SIZE 8192        // each buffer is 64kb = 8192*8 bytes, represented as 8192 * uint64_t
-#define NUM_CONSUMERS 8         // number of consumer threads
+#define NUM_CONSUMERS 6         // number of consumer threads
 
 int finishedReading = 0;
 
@@ -66,20 +66,21 @@ void *thread_handle_packet()
         for (int i = 0; i < BUFFER_SIZE; ++i)
         {
             // check if the 8 byte value isnt just 0
-            if (buffer[i] != 0)
+            if (buffer[i] == 0)  //BREAK WHEN == 0 because when one buffer is empty, the rest of the block also is
             {
-                // cast the 8 byte value to a char pointer
-                bytePointer = (unsigned char *)&buffer[i];
+                break;
+            }
+            // cast the 8 byte value to a char pointer
+            bytePointer = (unsigned char *)&buffer[i];
 
-                // Iterate through each byte in the non empty 8-byte buffer
-                for (j = 0; j < 8; ++j)
+            // Iterate through each byte in the non empty 8-byte buffer
+            for (j = 0; j < 8; ++j)
+            {
+                // if the first two bit of 0b01100000 are set, then we are between 64 and 127
+                if ((bytePointer[j] & 192) == 64)
                 {
-                    // if the first two bit of 0b01100000 are set, then we are between 64 and 127
-                    if ((bytePointer[j] & 192) == 64)
-                    {
-                        // then modulos 32 to get the index in the local_ascii array
-                        local_ascii[bytePointer[j] % 32]++;
-                    }
+                    // then modulos 32 to get the index in the local_ascii array
+                    local_ascii[bytePointer[j] % 32]++;
                 }
             }
         }
