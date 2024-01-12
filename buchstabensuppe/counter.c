@@ -5,7 +5,7 @@
 
 #define MAX_QUEUE_SIZE 120000 // max file size is 468.75mb == (120000 * 4096) / 1024 / 1024
 #define BUFFER_SIZE 512       // each buffer is 4096 bytes, represented as 512 uint64_t
-#define NUM_CONSUMERS 4       // number of consumer threads
+#define NUM_CONSUMERS 6       // number of consumer threads
 
 int finishedReading = 0;
 
@@ -27,7 +27,7 @@ pthread_mutex_t alphabet_mutex;
 
 void *thread_handle_packet()
 {
-    unsigned int local_ascii[128] = {0};
+    unsigned int local_ascii[32] = {0};
 
     while (1)
     {
@@ -66,10 +66,11 @@ void *thread_handle_packet()
                 // Iterate through each byte in the non empty 8-byte buffer
                 for (int j = 0; j < 8; ++j)
                 {
-                    // Check if the character is a letter (A-Z or a-z) using bit manipulation
-                    if ((bytePointer[j] | 32) - 'a' < 26)
+                    // if the first two bit of 0b01100000 are set, then we are between 64 and 127
+                    if ((bytePointer[j] & 192) == 64)
                     {
-                        local_ascii[bytePointer[j]]++;
+                        // then modulos 32 to get the index in the local_ascii array
+                        local_ascii[bytePointer[j] % 32]++;
                     }
                 }
             }
@@ -81,7 +82,7 @@ void *thread_handle_packet()
     // add local_ascii to alphabet
     for (int i = 0; i < 26; i++)
     {
-        alphabet[i] += local_ascii[i+'a'] + local_ascii[i+'A']; // add local_alphabet to alphabet
+        alphabet[i] += local_ascii[i + 1]; // add local_alphabet to alphabet
     }
 
     pthread_mutex_unlock(&alphabet_mutex);
