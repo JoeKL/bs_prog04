@@ -1,16 +1,13 @@
 #include "counter.h"
 #include <stdio.h>
 #include <stdint.h>
-#include <inttypes.h>
 #include <pthread.h>
-#include <ctype.h>
 
-#define MAX_QUEUE_SIZE 131072 // 2^17
+#define MAX_QUEUE_SIZE 120000 // max file size is 468.75mb == (120000 * 4096) / 1024 / 1024
 #define BUFFER_SIZE 512       // each buffer is 4096 bytes, represented as 512 uint64_t
-#define NUM_CONSUMERS 8       // number of consumer threads
+#define NUM_CONSUMERS 4       // number of consumer threads
 
 int finishedReading = 0;
-int callValue = 0;
 
 typedef struct
 {
@@ -51,6 +48,7 @@ void *thread_handle_packet()
 
         // get the next bufferelement
         uint64_t *buffer = shared_queue.buffer[shared_queue.front];
+        
         // increment front
         shared_queue.front = (shared_queue.front + 1) % MAX_QUEUE_SIZE;
 
@@ -68,7 +66,6 @@ void *thread_handle_packet()
                 // Iterate through each byte in the non empty 8-byte buffer
                 for (int j = 0; j < 8; ++j)
                 {
-
                     // Check if the character is a letter (A-Z or a-z) using bit manipulation
                     if ((bytePointer[j] | 32) - 'a' < 26)
                     {
@@ -81,11 +78,10 @@ void *thread_handle_packet()
 
     pthread_mutex_lock(&alphabet_mutex); // lock alphabet mutex
 
-    // add local_alphabet to alphabet
+    // add local_ascii to alphabet
     for (int i = 0; i < 26; i++)
     {
-        alphabet[i] += local_ascii[i+'a']; // add local_alphabet to alphabet
-        alphabet[i] += local_ascii[i+'A']; // add local_alphabet to alphabet
+        alphabet[i] += local_ascii[i+'a'] + local_ascii[i+'A']; // add local_alphabet to alphabet
     }
 
     pthread_mutex_unlock(&alphabet_mutex);
@@ -104,7 +100,7 @@ void count(const char *filename)
     // if file could not be opened
     if (fp == NULL)
     {
-        printf("Could not open file %s", filename);
+        perror("Could not open file");
         return;
     }
 
@@ -145,15 +141,11 @@ void count(const char *filename)
     pthread_cond_broadcast(&shared_queue.cond);      // broadcast signal to consumer threads
     pthread_mutex_unlock(&shared_queue.queue_mutex); // unlock mutex
 
-    // printf("work done. %li buffers left to read\n", shared_queue.rear - shared_queue.front);
-
     // Wait for all consumer threads to finish
     for (int i = 0; i < NUM_CONSUMERS; i++)
     {
         pthread_join(thread_ids[i], NULL);
     }
-
-    printf("callValue: %d\n", callValue);
 
     // delete 2x LAUCH from the alphabet
     alphabet[11] -= 2; // L == 11
