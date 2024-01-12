@@ -3,8 +3,12 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#define MAX_QUEUE_SIZE 30000   // max file size is 468.75mb == (120000 * 4096) / 1024 / 1024
-#define BUFFER_SIZE 2048        // each buffer is 16384 bytes, represented as 2048 uint64_t
+// max filesize in kb is 480.000kb == 468.75mb
+
+// #define BLOCK_SIZE 65536        // 64kb da "bs=64K"
+
+#define MAX_QUEUE_SIZE 7500     // 480.000kb / 64kb = 7500
+#define BUFFER_SIZE 8192        // each buffer is 64kb = 8192*8 bytes, represented as 8192 * uint64_t
 #define NUM_CONSUMERS 8         // number of consumer threads
 
 int finishedReading = 0;
@@ -99,7 +103,7 @@ void *thread_handle_packet()
 void count(const char *filename)
 {
 
-    FILE *fp;                            // file pointer
+    FILE *fp;  // file pointer
     pthread_t thread_ids[NUM_CONSUMERS]; // array of thread ids
 
     fp = fopen(filename, "rb"); // open file
@@ -117,8 +121,8 @@ void count(const char *filename)
         pthread_create(&thread_ids[i], NULL, thread_handle_packet, NULL); // create thread
     }
 
-    // read file into queue in 4096 byte chunks until EOF
-    while (fread(shared_queue.buffer[shared_queue.rear], 1, BUFFER_SIZE * 8, fp) > 0)
+    // read file into queue in 16384 byte chunks until EOF
+    while (fread(shared_queue.buffer[shared_queue.rear], 1, BUFFER_SIZE * sizeof(uint64_t), fp) > 0)
     {
         // lock mutex
         pthread_mutex_lock(&shared_queue.queue_mutex);
