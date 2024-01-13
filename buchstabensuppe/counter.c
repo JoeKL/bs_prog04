@@ -86,6 +86,7 @@ void *thread_handle_packet()
             // instead of looping over the 8 bytes, we just call inline processByte 8 times to reduce the overhead of the loop
             // since the loop is called 8192 times per buffer in worstcase (when every byte is a letter) 
             // it would be called 8192 times per block with 7500 blocks in total = 61.440.000 times
+            // averagecase would probs be half of that, so 30.720.000 times
             processByte(bytePointer, local_ascii, 0);
             processByte(bytePointer, local_ascii, 1);
             processByte(bytePointer, local_ascii, 2);
