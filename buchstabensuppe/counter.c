@@ -7,9 +7,9 @@
 
 // #define BLOCK_SIZE 65536        // 64kb da "bs=64K"
 
-#define MAX_QUEUE_SIZE 7500     // 480.000kb / 64kb = 7500
-#define BUFFER_SIZE 8192        // each buffer is 64kb = 8192*8 bytes, represented as 8192 * uint64_t
-#define NUM_CONSUMERS 6         // number of consumer threads
+#define MAX_QUEUE_SIZE 7500 // 480.000kb / 64kb = 7500
+#define BUFFER_SIZE 8192    // each buffer is 64kb = 8192*8 bytes, represented as 8192 * uint64_t
+#define NUM_CONSUMERS 4     // number of consumer threads
 
 int finishedReading = 0;
 
@@ -28,6 +28,16 @@ shared_queue_t shared_queue = {
     .queue_mutex = PTHREAD_MUTEX_INITIALIZER};
 
 pthread_mutex_t alphabet_mutex;
+
+static inline void processByte(unsigned char *bytePointer, unsigned int *local_ascii, int index)
+{
+    // if the first two bit of 0b01100000 are set, then we are between 64 and 127
+    if ((bytePointer[index] & 192) == 64)
+    {
+        // then modulos 32 to get the index in the local_ascii array
+        local_ascii[bytePointer[index] % 32]++;
+    }
+}
 
 void *thread_handle_packet()
 {
@@ -53,41 +63,43 @@ void *thread_handle_packet()
 
         // get the next bufferelement
         uint64_t *buffer = shared_queue.buffer[shared_queue.front];
-        
+
         // increment front
         shared_queue.front = (shared_queue.front + 1) % MAX_QUEUE_SIZE;
 
         pthread_mutex_unlock(&shared_queue.queue_mutex); // unlock mutex
 
         unsigned char *bytePointer;
-        int j;
 
         // for each entry in the buffer array
         for (int i = 0; i < BUFFER_SIZE; ++i)
         {
-            // check if the 8 byte value isnt just 0
-            if (buffer[i] == 0)  //BREAK WHEN == 0 because when one buffer is empty, the rest of the block also is
+            // if the entry is 0, then the rest of the block is also 0 and we can skip 65536 bytes
+            if (buffer[i] == 0) 
             {
                 break;
             }
+
             // cast the 8 byte value to a char pointer
             bytePointer = (unsigned char *)&buffer[i];
 
-            // Iterate through each byte in the non empty 8-byte buffer
-            for (j = 0; j < 8; ++j)
-            {
-                // if the first two bit of 0b01100000 are set, then we are between 64 and 127
-                if ((bytePointer[j] & 192) == 64)
-                {
-                    // then modulos 32 to get the index in the local_ascii array
-                    local_ascii[bytePointer[j] % 32]++;
-                }
-            }
+            // instead of looping over the 8 bytes, we just call inline processByte 8 times to reduce the overhead of the loop
+            // since the loop is called 8192 times per buffer in worstcase (when every byte is a letter) 
+            // it would be called 8192 times per block with 7500 blocks in total = 61.440.000 times
+            processByte(bytePointer, local_ascii, 0);
+            processByte(bytePointer, local_ascii, 1);
+            processByte(bytePointer, local_ascii, 2);
+            processByte(bytePointer, local_ascii, 3);
+
+            processByte(bytePointer, local_ascii, 4);
+            processByte(bytePointer, local_ascii, 5);
+            processByte(bytePointer, local_ascii, 6);
+            processByte(bytePointer, local_ascii, 7);
+            
         }
     }
 
     // when done with all packets, lock alphabet mutex and add local_ascii to alphabet
-
     pthread_mutex_lock(&alphabet_mutex);
 
     // add local_ascii to alphabet
@@ -104,7 +116,7 @@ void *thread_handle_packet()
 void count(const char *filename)
 {
 
-    FILE *fp;  // file pointer
+    FILE *fp;                            // file pointer
     pthread_t thread_ids[NUM_CONSUMERS]; // array of thread ids
 
     fp = fopen(filename, "rb"); // open file
@@ -132,8 +144,8 @@ void count(const char *filename)
         if ((shared_queue.rear + 1) % MAX_QUEUE_SIZE != shared_queue.front)
         {
             shared_queue.rear = (shared_queue.rear + 1) % MAX_QUEUE_SIZE; // increment rear
-            pthread_cond_signal(&shared_queue.cond);         // signal consumer threads
-            pthread_mutex_unlock(&shared_queue.queue_mutex); // unlock mutex
+            pthread_cond_signal(&shared_queue.cond);                      // signal consumer threads
+            pthread_mutex_unlock(&shared_queue.queue_mutex);              // unlock mutex
         }
         else
         {
