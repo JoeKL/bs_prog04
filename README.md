@@ -19,7 +19,7 @@ This module implements and benchmarks three different methods for copying files 
 ### Implemented Strategies
 * **Buffered I/O**: Standard `read(2)` and `write(2)` loop using a user-space malloc'd buffer.
 * **Memory Mapping**: Uses `mmap(2)` to map the source file into virtual memory, allowing direct memory-to-file writes via `write(2)`.
-* ***Zero-Copy**: Uses `sendfile(2)` to transfer data directly between file descriptors within the kernel, avoiding user-space data copying entirely.
+* **Zero-Copy**: Uses `sendfile(2)` to transfer data directly between file descriptors within the kernel, avoiding user-space data copying entirely.
 
 ### Usage
 The program measures the execution time (in milliseconds) for each method, including resource allocation overhead.
