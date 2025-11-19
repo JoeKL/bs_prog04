@@ -28,15 +28,16 @@ This module implements and benchmarks three different methods for copying files 
 make
 ./copyfile <mode> <source_file> <destination_file>
 ```
----
 
 ### Performance Comparison
+
+---
 
 count_naive
 
 Time: 7049479 us
 
-------------
+---
 
 count array[512] * 8byte
 
