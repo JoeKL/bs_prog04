@@ -17,19 +17,19 @@ The project consists of two distinct modules focusing on different aspects of sy
 This module implements and benchmarks three different methods for copying files on a Linux system to understand the overhead of context switches and memory buffers.
 
 ### Implemented Strategies
-* [cite_start]**Buffered I/O**: Standard `read(2)` and `write(2)` loop using a user-space malloc'd buffer[cite: 23, 25, 27].
-* [cite_start]**Memory Mapping**: Uses `mmap(2)` to map the source file into virtual memory, allowing direct memory-to-file writes via `write(2)`[cite: 31, 32].
-* [cite_start]**Zero-Copy**: Uses `sendfile(2)` to transfer data directly between file descriptors within the kernel, avoiding user-space data copying entirely[cite: 39].
+* **Buffered I/O**: Standard `read(2)` and `write(2)` loop using a user-space malloc'd buffer.
+* **Memory Mapping**: Uses `mmap(2)` to map the source file into virtual memory, allowing direct memory-to-file writes via `write(2)`.
+* ***Zero-Copy**: Uses `sendfile(2)` to transfer data directly between file descriptors within the kernel, avoiding user-space data copying entirely.
 
 ### Usage
-[cite_start]The program measures the execution time (in milliseconds) for each method, including resource allocation overhead[cite: 41, 42].
+The program measures the execution time (in milliseconds) for each method, including resource allocation overhead.
 
 ```bash
 make
 ./copyfile <mode> <source_file> <destination_file>
 ```
 
-### Performance Comparison
+## Performance Comparison
 
 ---
 
